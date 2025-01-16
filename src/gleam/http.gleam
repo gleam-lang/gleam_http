@@ -29,34 +29,71 @@ pub type Method {
   Other(String)
 }
 
+// A token is defined as:
+//
+//   token         = 1*tchar
+//
+//   tchar         = "!" / "#" / "$" / "%" / "&" / "'" / "*"
+//                 / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
+//                 / DIGIT / ALPHA
+//                 ; any VCHAR, except delimiters
+//
+// (From https://www.rfc-editor.org/rfc/rfc9110.html#name-tokens)
+//
+// Where DIGIT = %x30-39
+//       ALPHA = %x41-5A / %x61-7A
+// (%xXX is a hexadecimal ASCII value)
+//
+// (From https://www.rfc-editor.org/rfc/rfc5234#appendix-B.1)
+//
+fn is_valid_token(s: String) -> Bool {
+  bit_array.from_string(s)
+  |> do_is_valid_token(True)
+}
+
+fn do_is_valid_token(bytes: BitArray, acc: Bool) {
+  case bytes, acc {
+    <<char, rest:bytes>>, True -> do_is_valid_token(rest, is_valid_tchar(char))
+    _, _ -> acc
+  }
+}
+
+@external(erlang, "gleam_http_native", "is_valid_tchar")
+@external(javascript, "../gleam_http_native.mjs", "is_valid_tchar")
+fn is_valid_tchar(ch: Int) -> Bool
+
 // TODO: check if the a is a valid HTTP method (i.e. it is a token, as per the
 // spec) and return Ok(Other(s)) if so.
 pub fn parse_method(s) -> Result(Method, Nil) {
-  case string.lowercase(s) {
-    "connect" -> Ok(Connect)
-    "delete" -> Ok(Delete)
-    "get" -> Ok(Get)
-    "head" -> Ok(Head)
-    "options" -> Ok(Options)
-    "patch" -> Ok(Patch)
-    "post" -> Ok(Post)
-    "put" -> Ok(Put)
-    "trace" -> Ok(Trace)
-    _ -> Error(Nil)
+  case s {
+    "CONNECT" -> Ok(Connect)
+    "DELETE" -> Ok(Delete)
+    "GET" -> Ok(Get)
+    "HEAD" -> Ok(Head)
+    "OPTIONS" -> Ok(Options)
+    "PATCH" -> Ok(Patch)
+    "POST" -> Ok(Post)
+    "PUT" -> Ok(Put)
+    "TRACE" -> Ok(Trace)
+    s ->
+      case is_valid_token(s) {
+        True -> Ok(Other(s))
+        False -> Error(Nil)
+      }
   }
 }
 
 pub fn method_to_string(method: Method) -> String {
   case method {
-    Connect -> "connect"
-    Delete -> "delete"
-    Get -> "get"
-    Head -> "head"
-    Options -> "options"
-    Patch -> "patch"
-    Post -> "post"
-    Put -> "put"
-    Trace -> "trace"
+    Connect -> "CONNECT"
+    Delete -> "DELETE"
+    Get -> "GET"
+    Head -> "HEAD"
+    Options -> "OPTIONS"
+    Patch -> "PATCH"
+    Post -> "POST"
+    Put -> "PUT"
+    Trace -> "TRACE"
     Other(s) -> s
   }
 }
@@ -106,7 +143,8 @@ pub fn scheme_from_string(scheme: String) -> Result(Scheme, Nil) {
 pub fn method_from_dynamic(value: Dynamic) -> Result(Method, List(DecodeError)) {
   case do_method_from_dynamic(value) {
     Ok(method) -> Ok(method)
-    Error(_) -> Error([DecodeError("HTTP method", dynamic.classify(value), [])])
+    Error(Nil) ->
+      Error([DecodeError("HTTP method", dynamic.classify(value), [])])
   }
 }
 
